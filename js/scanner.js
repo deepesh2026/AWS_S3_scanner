@@ -7,15 +7,14 @@ import {
     GetBucketPolicyCommand,
     GetBucketLifecycleConfigurationCommand
 } from "@aws-sdk/client-s3";
-import { s3Client } from './aws-config.js';
 
 /**
  * Helper to safely execute S3 commands.
  * Some commands throw an error if the configuration does not exist (e.g., no encryption).
  */
-async function safeExecute(command) {
+async function safeExecute(command, client) {
     try {
-        return await s3Client.send(command);
+        return await client.send(command);
     } catch (error) {
         return { error: error.name };
     }
@@ -25,8 +24,8 @@ async function safeExecute(command) {
  * 1. Check Public Access Block
  * Concept: Ensures that bucket settings block public reads/writes, preventing accidental data leaks.
  */
-export async function checkPublicAccess(bucketName) {
-    const res = await safeExecute(new GetPublicAccessBlockCommand({ Bucket: bucketName }));
+export async function checkPublicAccess(bucketName, client) {
+    const res = await safeExecute(new GetPublicAccessBlockCommand({ Bucket: bucketName }), client);
     
     if (res.error === 'NoSuchPublicAccessBlockConfiguration') {
         return { name: "Public Access Block", status: "FAIL", detail: "Not configured (Default Off)", severity: "HIGH" };
@@ -48,8 +47,8 @@ export async function checkPublicAccess(bucketName) {
  * 2. Check Encryption (SSE)
  * Concept: Data at rest should be encrypted to protect against physical drive theft or unauthorized backend access.
  */
-export async function checkEncryption(bucketName) {
-    const res = await safeExecute(new GetBucketEncryptionCommand({ Bucket: bucketName }));
+export async function checkEncryption(bucketName, client) {
+    const res = await safeExecute(new GetBucketEncryptionCommand({ Bucket: bucketName }), client);
     
     if (res.error === 'ServerSideEncryptionConfigurationNotFoundError') {
         return { name: "Encryption (At Rest)", status: "FAIL", detail: "Server-side encryption disabled", severity: "HIGH" };
@@ -70,8 +69,8 @@ export async function checkEncryption(bucketName) {
  * 3. Check Versioning
  * Concept: Protects against accidental deletion or ransomware by keeping multiple variants of an object.
  */
-export async function checkVersioning(bucketName) {
-    const res = await safeExecute(new GetBucketVersioningCommand({ Bucket: bucketName }));
+export async function checkVersioning(bucketName, client) {
+    const res = await safeExecute(new GetBucketVersioningCommand({ Bucket: bucketName }), client);
     if (res.error) {
         return { name: "Versioning", status: "FAIL", detail: `API Error: ${res.error}`, severity: "HIGH" };
     }
@@ -87,8 +86,8 @@ export async function checkVersioning(bucketName) {
  * 4. Check Access Logging
  * Concept: Essential for forensics. If a breach happens, logs tell you who accessed what and when.
  */
-export async function checkLogging(bucketName) {
-    const res = await safeExecute(new GetBucketLoggingCommand({ Bucket: bucketName }));
+export async function checkLogging(bucketName, client) {
+    const res = await safeExecute(new GetBucketLoggingCommand({ Bucket: bucketName }), client);
     if (res.error) {
         return { name: "Access Logging", status: "FAIL", detail: `API Error: ${res.error}`, severity: "HIGH" };
     }
@@ -104,8 +103,8 @@ export async function checkLogging(bucketName) {
  * 5. Check MFA Delete (requires checking Versioning Config)
  * Concept: Requires physical hardware token to delete files, adding a strong layer against compromised admin accounts.
  */
-export async function checkMFADelete(bucketName) {
-    const res = await safeExecute(new GetBucketVersioningCommand({ Bucket: bucketName }));
+export async function checkMFADelete(bucketName, client) {
+    const res = await safeExecute(new GetBucketVersioningCommand({ Bucket: bucketName }), client);
     if (res.error) {
         return { name: "MFA Delete", status: "FAIL", detail: `API Error: ${res.error}`, severity: "HIGH" };
     }
@@ -121,8 +120,8 @@ export async function checkMFADelete(bucketName) {
  * 6. Check HTTPS Enforced Policy & Cross-Account Access
  * Concept: HTTPS ensures data in transit is encrypted. Cross-account access can lead to privilege escalation if external IDs aren't restricted.
  */
-export async function checkPolicy(bucketName) {
-    const res = await safeExecute(new GetBucketPolicyCommand({ Bucket: bucketName }));
+export async function checkPolicy(bucketName, client) {
+    const res = await safeExecute(new GetBucketPolicyCommand({ Bucket: bucketName }), client);
     
     let httpsStatus = { name: "HTTPS Only Policy", status: "FAIL", detail: "Not enforced in policy", severity: "MEDIUM" };
     let crossAccountStatus = { name: "Cross-Account Limits", status: "PASS", detail: "No obvious external principals found", severity: "LOW" };
@@ -170,8 +169,8 @@ export async function checkPolicy(bucketName) {
  * 7. Check Lifecycle Policies
  * Concept: Old data should be transitioned to cold storage or deleted to reduce attack surface and cost.
  */
-export async function checkLifecycle(bucketName) {
-    const res = await safeExecute(new GetBucketLifecycleConfigurationCommand({ Bucket: bucketName }));
+export async function checkLifecycle(bucketName, client) {
+    const res = await safeExecute(new GetBucketLifecycleConfigurationCommand({ Bucket: bucketName }), client);
     
     if (res.error === 'NoSuchLifecycleConfiguration') {
         return { name: "Lifecycle Rules", status: "FAIL", detail: "No lifecycle rules configured", severity: "LOW" };
@@ -185,18 +184,18 @@ export async function checkLifecycle(bucketName) {
 /**
  * Master function to run all checks on a single bucket
  */
-export async function runAllChecks(bucketName) {
+export async function runAllChecks(bucketName, client) {
     const results = [];
-    results.push(await checkPublicAccess(bucketName));
-    results.push(await checkEncryption(bucketName));
-    results.push(await checkVersioning(bucketName));
-    results.push(await checkLogging(bucketName));
-    results.push(await checkMFADelete(bucketName));
+    results.push(await checkPublicAccess(bucketName, client));
+    results.push(await checkEncryption(bucketName, client));
+    results.push(await checkVersioning(bucketName, client));
+    results.push(await checkLogging(bucketName, client));
+    results.push(await checkMFADelete(bucketName, client));
     
-    const policyChecks = await checkPolicy(bucketName);
+    const policyChecks = await checkPolicy(bucketName, client);
     results.push(...policyChecks);
     
-    results.push(await checkLifecycle(bucketName));
+    results.push(await checkLifecycle(bucketName, client));
     
     return results;
 }

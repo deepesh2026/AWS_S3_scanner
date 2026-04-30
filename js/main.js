@@ -1,5 +1,5 @@
-import { initializeAWS, s3Client, disconnectAWS } from './aws-config.js';
-import { ListBucketsCommand } from "@aws-sdk/client-s3";
+import { initializeAWS, s3Client, disconnectAWS, getRegionClient } from './aws-config.js';
+import { ListBucketsCommand, GetBucketLocationCommand } from "@aws-sdk/client-s3";
 import { runAllChecks } from './scanner.js';
 import { generateReport } from './reporter.js';
 
@@ -45,13 +45,13 @@ authForm.addEventListener('submit', async (e) => {
     
     const accessKey = document.getElementById('accessKey').value.trim();
     const secretKey = document.getElementById('secretKey').value.trim();
-    const region = document.getElementById('region').value;
+    const region = 'us-east-1'; // Default global region for listing buckets
 
     // 1. Initialize AWS SDK
     if (initializeAWS(accessKey, secretKey, region)) {
         // UI Updates
         headerStatus.classList.remove('hidden');
-        activeRegionBadge.textContent = `Region: ${region}`;
+        activeRegionBadge.textContent = `Region: Global Discovery`;
         showScreen(scanningScreen);
         log("AWS Client initialized successfully.");
         
@@ -102,8 +102,23 @@ async function testConnection() {
             const percent = ((i) / buckets.length) * 100;
             document.getElementById('scanProgressBar').style.width = `${percent}%`;
 
+            log(`Discovering Region for ${b.Name}...`);
+            
+            let bucketRegion = 'us-east-1';
+            try {
+                const locRes = await s3Client.send(new GetBucketLocationCommand({ Bucket: b.Name }));
+                if (locRes.LocationConstraint) {
+                    bucketRegion = locRes.LocationConstraint;
+                }
+            } catch (e) {
+                console.warn(`Could not get location for ${b.Name}. Defaulting to us-east-1.`, e);
+            }
+            
+            log(`Region determined: ${bucketRegion}`);
+            const regionClient = getRegionClient(bucketRegion);
+
             log(`Starting checks for ${b.Name}...`);
-            const checks = await runAllChecks(b.Name);
+            const checks = await runAllChecks(b.Name, regionClient);
             
             // Save the results
             auditResults.push({

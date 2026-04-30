@@ -17512,6 +17512,19 @@ ${toHex(hashedRequest)}`;
   }).s("AmazonS3", "GetBucketLifecycleConfiguration", {}).n("S3Client", "GetBucketLifecycleConfigurationCommand").sc(GetBucketLifecycleConfiguration$).build() {
   };
 
+  // node_modules/@aws-sdk/client-s3/dist-es/commands/GetBucketLocationCommand.js
+  var GetBucketLocationCommand = class extends Command.classBuilder().ep({
+    ...commonParams,
+    UseS3ExpressControlEndpoint: { type: "staticContextParams", value: true },
+    Bucket: { type: "contextParams", name: "Bucket" }
+  }).m(function(Command2, cs, config, o2) {
+    return [
+      getEndpointPlugin(config, Command2.getEndpointParameterInstructions()),
+      getThrow200ExceptionsPlugin(config)
+    ];
+  }).s("AmazonS3", "GetBucketLocation", {}).n("S3Client", "GetBucketLocationCommand").sc(GetBucketLocation$).build() {
+  };
+
   // node_modules/@aws-sdk/client-s3/dist-es/commands/GetBucketLoggingCommand.js
   var GetBucketLoggingCommand = class extends Command.classBuilder().ep({
     ...commonParams,
@@ -17572,6 +17585,7 @@ ${toHex(hashedRequest)}`;
 
   // js/aws-config.js
   var s3Client = null;
+  var currentCreds = null;
   var originalFetch = window.fetch;
   window.fetch = async function(input, init) {
     const proxyUrl = "http://127.0.0.1:8080/";
@@ -17597,33 +17611,38 @@ ${toHex(hashedRequest)}`;
   };
   function initializeAWS(accessKeyId, secretAccessKey, region) {
     try {
-      s3Client = new S3Client({
-        region,
-        credentials: {
-          accessKeyId,
-          secretAccessKey
-        }
-      });
+      currentCreds = {
+        accessKeyId,
+        secretAccessKey
+      };
+      s3Client = getRegionClient(region);
       return true;
     } catch (error) {
       console.error("Failed to initialize AWS Client", error);
       return false;
     }
   }
+  function getRegionClient(region) {
+    if (!currentCreds) throw new Error("AWS not initialized");
+    return new S3Client({
+      region,
+      credentials: currentCreds
+    });
+  }
   function disconnectAWS() {
     s3Client = null;
   }
 
   // js/scanner.js
-  async function safeExecute(command) {
+  async function safeExecute(command, client) {
     try {
-      return await s3Client.send(command);
+      return await client.send(command);
     } catch (error) {
       return { error: error.name };
     }
   }
-  async function checkPublicAccess(bucketName) {
-    const res = await safeExecute(new GetPublicAccessBlockCommand({ Bucket: bucketName }));
+  async function checkPublicAccess(bucketName, client) {
+    const res = await safeExecute(new GetPublicAccessBlockCommand({ Bucket: bucketName }), client);
     if (res.error === "NoSuchPublicAccessBlockConfiguration") {
       return { name: "Public Access Block", status: "FAIL", detail: "Not configured (Default Off)", severity: "HIGH" };
     } else if (res.error) {
@@ -17637,8 +17656,8 @@ ${toHex(hashedRequest)}`;
       return { name: "Public Access Block", status: "FAIL", detail: "Partial or missing public blocks", severity: "HIGH" };
     }
   }
-  async function checkEncryption(bucketName) {
-    const res = await safeExecute(new GetBucketEncryptionCommand({ Bucket: bucketName }));
+  async function checkEncryption(bucketName, client) {
+    const res = await safeExecute(new GetBucketEncryptionCommand({ Bucket: bucketName }), client);
     if (res.error === "ServerSideEncryptionConfigurationNotFoundError") {
       return { name: "Encryption (At Rest)", status: "FAIL", detail: "Server-side encryption disabled", severity: "HIGH" };
     } else if (res.error) {
@@ -17651,8 +17670,8 @@ ${toHex(hashedRequest)}`;
     }
     return { name: "Encryption (At Rest)", status: "FAIL", detail: "No default encryption rule", severity: "HIGH" };
   }
-  async function checkVersioning(bucketName) {
-    const res = await safeExecute(new GetBucketVersioningCommand({ Bucket: bucketName }));
+  async function checkVersioning(bucketName, client) {
+    const res = await safeExecute(new GetBucketVersioningCommand({ Bucket: bucketName }), client);
     if (res.error) {
       return { name: "Versioning", status: "FAIL", detail: `API Error: ${res.error}`, severity: "HIGH" };
     }
@@ -17662,8 +17681,8 @@ ${toHex(hashedRequest)}`;
       return { name: "Versioning", status: "FAIL", detail: res.Status ? res.Status : "Suspended or Unconfigured", severity: "MEDIUM" };
     }
   }
-  async function checkLogging(bucketName) {
-    const res = await safeExecute(new GetBucketLoggingCommand({ Bucket: bucketName }));
+  async function checkLogging(bucketName, client) {
+    const res = await safeExecute(new GetBucketLoggingCommand({ Bucket: bucketName }), client);
     if (res.error) {
       return { name: "Access Logging", status: "FAIL", detail: `API Error: ${res.error}`, severity: "HIGH" };
     }
@@ -17673,8 +17692,8 @@ ${toHex(hashedRequest)}`;
       return { name: "Access Logging", status: "WARN", detail: "Server access logging is disabled", severity: "MEDIUM" };
     }
   }
-  async function checkMFADelete(bucketName) {
-    const res = await safeExecute(new GetBucketVersioningCommand({ Bucket: bucketName }));
+  async function checkMFADelete(bucketName, client) {
+    const res = await safeExecute(new GetBucketVersioningCommand({ Bucket: bucketName }), client);
     if (res.error) {
       return { name: "MFA Delete", status: "FAIL", detail: `API Error: ${res.error}`, severity: "HIGH" };
     }
@@ -17684,8 +17703,8 @@ ${toHex(hashedRequest)}`;
       return { name: "MFA Delete", status: "WARN", detail: "MFA Delete is not enforced", severity: "LOW" };
     }
   }
-  async function checkPolicy(bucketName) {
-    const res = await safeExecute(new GetBucketPolicyCommand({ Bucket: bucketName }));
+  async function checkPolicy(bucketName, client) {
+    const res = await safeExecute(new GetBucketPolicyCommand({ Bucket: bucketName }), client);
     let httpsStatus = { name: "HTTPS Only Policy", status: "FAIL", detail: "Not enforced in policy", severity: "MEDIUM" };
     let crossAccountStatus = { name: "Cross-Account Limits", status: "PASS", detail: "No obvious external principals found", severity: "LOW" };
     if (res.error === "NoSuchBucketPolicy") {
@@ -17719,8 +17738,8 @@ ${toHex(hashedRequest)}`;
     }
     return [httpsStatus, crossAccountStatus];
   }
-  async function checkLifecycle(bucketName) {
-    const res = await safeExecute(new GetBucketLifecycleConfigurationCommand({ Bucket: bucketName }));
+  async function checkLifecycle(bucketName, client) {
+    const res = await safeExecute(new GetBucketLifecycleConfigurationCommand({ Bucket: bucketName }), client);
     if (res.error === "NoSuchLifecycleConfiguration") {
       return { name: "Lifecycle Rules", status: "FAIL", detail: "No lifecycle rules configured", severity: "LOW" };
     } else if (res.error) {
@@ -17728,16 +17747,16 @@ ${toHex(hashedRequest)}`;
     }
     return { name: "Lifecycle Rules", status: "PASS", detail: `${res.Rules.length} rule(s) active`, severity: "LOW" };
   }
-  async function runAllChecks(bucketName) {
+  async function runAllChecks(bucketName, client) {
     const results = [];
-    results.push(await checkPublicAccess(bucketName));
-    results.push(await checkEncryption(bucketName));
-    results.push(await checkVersioning(bucketName));
-    results.push(await checkLogging(bucketName));
-    results.push(await checkMFADelete(bucketName));
-    const policyChecks = await checkPolicy(bucketName);
+    results.push(await checkPublicAccess(bucketName, client));
+    results.push(await checkEncryption(bucketName, client));
+    results.push(await checkVersioning(bucketName, client));
+    results.push(await checkLogging(bucketName, client));
+    results.push(await checkMFADelete(bucketName, client));
+    const policyChecks = await checkPolicy(bucketName, client);
     results.push(...policyChecks);
-    results.push(await checkLifecycle(bucketName));
+    results.push(await checkLifecycle(bucketName, client));
     return results;
   }
 
@@ -17898,10 +17917,10 @@ ${toHex(hashedRequest)}`;
     e2.preventDefault();
     const accessKey = document.getElementById("accessKey").value.trim();
     const secretKey = document.getElementById("secretKey").value.trim();
-    const region = document.getElementById("region").value;
+    const region = "us-east-1";
     if (initializeAWS(accessKey, secretKey, region)) {
       headerStatus.classList.remove("hidden");
-      activeRegionBadge.textContent = `Region: ${region}`;
+      activeRegionBadge.textContent = `Region: Global Discovery`;
       showScreen(scanningScreen);
       log("AWS Client initialized successfully.");
       await testConnection();
@@ -17931,8 +17950,20 @@ ${toHex(hashedRequest)}`;
         scanStatusText.textContent = `Scanning bucket ${i2 + 1} of ${buckets.length}: ${b2.Name}...`;
         const percent = i2 / buckets.length * 100;
         document.getElementById("scanProgressBar").style.width = `${percent}%`;
+        log(`Discovering Region for ${b2.Name}...`);
+        let bucketRegion = "us-east-1";
+        try {
+          const locRes = await s3Client.send(new GetBucketLocationCommand({ Bucket: b2.Name }));
+          if (locRes.LocationConstraint) {
+            bucketRegion = locRes.LocationConstraint;
+          }
+        } catch (e2) {
+          console.warn(`Could not get location for ${b2.Name}. Defaulting to us-east-1.`, e2);
+        }
+        log(`Region determined: ${bucketRegion}`);
+        const regionClient = getRegionClient(bucketRegion);
         log(`Starting checks for ${b2.Name}...`);
-        const checks = await runAllChecks(b2.Name);
+        const checks = await runAllChecks(b2.Name, regionClient);
         auditResults.push({
           bucketName: b2.Name,
           checks

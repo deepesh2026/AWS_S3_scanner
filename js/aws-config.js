@@ -3,6 +3,7 @@ import { S3Client } from "@aws-sdk/client-s3";
 
 // Global reference to the connected client
 export let s3Client = null;
+let currentCreds = null;
 
 // Intercept browser's native fetch API to route AWS calls through our local proxy
 const originalFetch = window.fetch;
@@ -37,18 +38,27 @@ window.fetch = async function(input, init) {
  */
 export function initializeAWS(accessKeyId, secretAccessKey, region) {
     try {
-        s3Client = new S3Client({
-            region: region,
-            credentials: {
-                accessKeyId: accessKeyId,
-                secretAccessKey: secretAccessKey
-            }
-        });
+        currentCreds = {
+            accessKeyId: accessKeyId,
+            secretAccessKey: secretAccessKey
+        };
+        s3Client = getRegionClient(region);
         return true;
     } catch (error) {
         console.error("Failed to initialize AWS Client", error);
         return false;
     }
+}
+
+/**
+ * Creates an S3 Client for a specific region using stored credentials
+ */
+export function getRegionClient(region) {
+    if (!currentCreds) throw new Error("AWS not initialized");
+    return new S3Client({
+        region: region,
+        credentials: currentCreds
+    });
 }
 
 /**
