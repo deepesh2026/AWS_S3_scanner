@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AWS S3 Security Scanner</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono&family=Syne:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/report.css">
+</head>
+<body>
+    <header class="app-header">
+        <div class="logo">
+            <span class="shield-icon">🛡️</span>
+            <h1>S3 Audit Tool</h1>
+        </div>
+        <div class="header-status hidden" id="headerStatus">
+            <span class="region-badge" id="activeRegionBadge">Region: us-east-1</span>
+            <button id="disconnectBtn" class="btn btn-small btn-outline">Disconnect</button>
+        </div>
+    </header>
+
+    <main class="app-container">
+        <!-- PAGE 1: Credentials Screen -->
+        <section id="credentialsScreen" class="screen active">
+            <div class="card auth-card">
+                <h2>Connect to AWS</h2>
+                <p class="subtitle">Run a secure, client-side only audit on your S3 buckets.</p>
+                
+                <div class="security-note">
+                    <strong>🔒 Security Note:</strong> Your credentials are never sent to any backend server. They stay in your browser's memory and are used directly with the AWS SDK to communicate with AWS.
+                </div>
+
+                <form id="authForm" class="auth-form">
+                    <div class="form-group">
+                        <label for="accessKey">AWS Access Key ID</label>
+                        <input type="text" id="accessKey" placeholder="AKIAIOSFODNN7EXAMPLE" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="secretKey">AWS Secret Access Key</label>
+                        <input type="password" id="secretKey" placeholder="wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="region">AWS Region</label>
+                        <select id="region" required>
+                            <option value="us-east-1">us-east-1 (N. Virginia)</option>
+                            <option value="us-east-2">us-east-2 (Ohio)</option>
+                            <option value="us-west-1">us-west-1 (N. California)</option>
+                            <option value="us-west-2">us-west-2 (Oregon)</option>
+                            <option value="eu-west-1">eu-west-1 (Ireland)</option>
+                            <option value="eu-central-1">eu-central-1 (Frankfurt)</option>
+                            <option value="ap-south-1">ap-south-1 (Mumbai)</option>
+                            <option value="ap-southeast-1">ap-southeast-1 (Singapore)</option>
+                            <option value="ap-southeast-2">ap-southeast-2 (Sydney)</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-full">Start Audit Scan</button>
+                </form>
+            </div>
+        </section>
+
+        <!-- PAGE 2: Scanning Screen -->
+        <section id="scanningScreen" class="screen hidden">
+            <div class="card scan-card">
+                <h2>Running Security Audit...</h2>
+                
+                <div class="progress-container">
+                    <div class="progress-bar" id="scanProgressBar"></div>
+                </div>
+                
+                <p id="scanStatusText" class="scan-status">Connecting to AWS...</p>
+                
+                <div class="log-feed" id="scanLogFeed">
+                    <!-- Logs will appear here dynamically -->
+                </div>
+            </div>
+        </section>
+
+        <!-- PAGE 3: Report Dashboard -->
+        <section id="reportScreen" class="screen hidden">
+            <div class="dashboard-header">
+                <h2>Audit Complete</h2>
+                <button id="exportBtn" class="btn btn-secondary">⬇️ Export JSON</button>
+            </div>
+
+            <!-- Summary Cards -->
+            <div class="summary-cards">
+                <div class="summary-card">
+                    <div class="summary-title">Total Buckets</div>
+                    <div class="summary-value" id="totalBucketsCount">0</div>
+                </div>
+                <div class="summary-card success">
+                    <div class="summary-title">Passed Checks</div>
+                    <div class="summary-value" id="passedChecksCount">0</div>
+                </div>
+                <div class="summary-card danger">
+                    <div class="summary-title">Failed Checks</div>
+                    <div class="summary-value" id="failedChecksCount">0</div>
+                </div>
+                <div class="summary-card warning">
+                    <div class="summary-title">Warnings</div>
+                    <div class="summary-value" id="warningsCount">0</div>
+                </div>
+            </div>
+
+            <div class="dashboard-grid">
+                <!-- Charts Section -->
+                <div class="charts-section card">
+                    <h3>Overall Compliance</h3>
+                    <div class="chart-container">
+                        <canvas id="complianceChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Bucket Reports List -->
+                <div class="bucket-list-section">
+                    <h3>Bucket Details</h3>
+                    <div id="bucketReportsContainer" class="bucket-reports">
+                        <!-- Bucket cards will be generated here -->
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Scripts will be loaded in Phase 2 & 3 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>
