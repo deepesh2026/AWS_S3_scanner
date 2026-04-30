@@ -28,8 +28,10 @@ async function safeExecute(command) {
 export async function checkPublicAccess(bucketName) {
     const res = await safeExecute(new GetPublicAccessBlockCommand({ Bucket: bucketName }));
     
-    if (res.error === 'NoSuchPublicAccessBlockConfiguration' || res.error) {
-        return { name: "Public Access Block", status: "FAIL", detail: "Not configured", severity: "HIGH" };
+    if (res.error === 'NoSuchPublicAccessBlockConfiguration') {
+        return { name: "Public Access Block", status: "FAIL", detail: "Not configured (Default Off)", severity: "HIGH" };
+    } else if (res.error) {
+        return { name: "Public Access Block", status: "FAIL", detail: `API Error: ${res.error}`, severity: "HIGH" };
     }
 
     const config = res.PublicAccessBlockConfiguration;
@@ -49,8 +51,10 @@ export async function checkPublicAccess(bucketName) {
 export async function checkEncryption(bucketName) {
     const res = await safeExecute(new GetBucketEncryptionCommand({ Bucket: bucketName }));
     
-    if (res.error) {
+    if (res.error === 'ServerSideEncryptionConfigurationNotFoundError') {
         return { name: "Encryption (At Rest)", status: "FAIL", detail: "Server-side encryption disabled", severity: "HIGH" };
+    } else if (res.error) {
+        return { name: "Encryption (At Rest)", status: "FAIL", detail: `API Error: ${res.error}`, severity: "HIGH" };
     }
 
     const rules = res.ServerSideEncryptionConfiguration?.Rules;
@@ -68,7 +72,10 @@ export async function checkEncryption(bucketName) {
  */
 export async function checkVersioning(bucketName) {
     const res = await safeExecute(new GetBucketVersioningCommand({ Bucket: bucketName }));
-    
+    if (res.error) {
+        return { name: "Versioning", status: "FAIL", detail: `API Error: ${res.error}`, severity: "HIGH" };
+    }
+
     if (res.Status === "Enabled") {
         return { name: "Versioning", status: "PASS", detail: "Enabled", severity: "LOW" };
     } else {
@@ -82,7 +89,10 @@ export async function checkVersioning(bucketName) {
  */
 export async function checkLogging(bucketName) {
     const res = await safeExecute(new GetBucketLoggingCommand({ Bucket: bucketName }));
-    
+    if (res.error) {
+        return { name: "Access Logging", status: "FAIL", detail: `API Error: ${res.error}`, severity: "HIGH" };
+    }
+
     if (res.LoggingEnabled) {
         return { name: "Access Logging", status: "PASS", detail: `Logging to: ${res.LoggingEnabled.TargetBucket}`, severity: "LOW" };
     } else {
@@ -96,7 +106,10 @@ export async function checkLogging(bucketName) {
  */
 export async function checkMFADelete(bucketName) {
     const res = await safeExecute(new GetBucketVersioningCommand({ Bucket: bucketName }));
-    
+    if (res.error) {
+        return { name: "MFA Delete", status: "FAIL", detail: `API Error: ${res.error}`, severity: "HIGH" };
+    }
+
     if (res.MFADelete === "Enabled") {
         return { name: "MFA Delete", status: "PASS", detail: "Enabled", severity: "LOW" };
     } else {
@@ -114,8 +127,13 @@ export async function checkPolicy(bucketName) {
     let httpsStatus = { name: "HTTPS Only Policy", status: "FAIL", detail: "Not enforced in policy", severity: "MEDIUM" };
     let crossAccountStatus = { name: "Cross-Account Limits", status: "PASS", detail: "No obvious external principals found", severity: "LOW" };
     
-    if (res.error) {
+    if (res.error === 'NoSuchBucketPolicy') {
         return [httpsStatus, { name: "Cross-Account Limits", status: "WARN", detail: "No bucket policy exists", severity: "LOW" }];
+    } else if (res.error) {
+        return [
+            { name: "HTTPS Only Policy", status: "FAIL", detail: `API Error: ${res.error}`, severity: "HIGH" },
+            { name: "Cross-Account Limits", status: "FAIL", detail: `API Error: ${res.error}`, severity: "HIGH" }
+        ];
     }
 
     try {
@@ -155,8 +173,10 @@ export async function checkPolicy(bucketName) {
 export async function checkLifecycle(bucketName) {
     const res = await safeExecute(new GetBucketLifecycleConfigurationCommand({ Bucket: bucketName }));
     
-    if (res.error) {
+    if (res.error === 'NoSuchLifecycleConfiguration') {
         return { name: "Lifecycle Rules", status: "FAIL", detail: "No lifecycle rules configured", severity: "LOW" };
+    } else if (res.error) {
+        return { name: "Lifecycle Rules", status: "FAIL", detail: `API Error: ${res.error}`, severity: "HIGH" };
     }
 
     return { name: "Lifecycle Rules", status: "PASS", detail: `${res.Rules.length} rule(s) active`, severity: "LOW" };
