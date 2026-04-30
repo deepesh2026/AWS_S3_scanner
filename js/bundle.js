@@ -17572,6 +17572,29 @@ ${toHex(hashedRequest)}`;
 
   // js/aws-config.js
   var s3Client = null;
+  var originalFetch = window.fetch;
+  window.fetch = async function(input, init) {
+    const proxyUrl = "http://127.0.0.1:8080/";
+    let urlStr = "";
+    if (typeof input === "string") {
+      urlStr = input;
+    } else if (input instanceof URL) {
+      urlStr = input.href;
+    } else if (input instanceof Request) {
+      urlStr = input.url;
+    }
+    if (urlStr.includes("amazonaws.com")) {
+      const newUrlStr = proxyUrl + urlStr;
+      if (input instanceof Request) {
+        input = new Request(newUrlStr, input);
+      } else if (input instanceof URL) {
+        input = new URL(newUrlStr);
+      } else {
+        input = newUrlStr;
+      }
+    }
+    return originalFetch(input, init);
+  };
   function initializeAWS(accessKeyId, secretAccessKey, region) {
     try {
       s3Client = new S3Client({
@@ -17876,7 +17899,7 @@ ${toHex(hashedRequest)}`;
   });
   async function testConnection() {
     scanStatusText.textContent = "Fetching S3 buckets...";
-    log("Calling s3:ListAllMyBuckets API...");
+    log("Calling s3:ListAllMyBuckets API via Local Proxy...");
     try {
       const command = new ListBucketsCommand({});
       const response = await s3Client.send(command);
