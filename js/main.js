@@ -1,5 +1,5 @@
 import { initializeAWS, s3Client, disconnectAWS } from './aws-config.js';
-import { ListBucketsCommand } from "https://cdn.jsdelivr.net/npm/@aws-sdk/client-s3/dist-es/index.js";
+import { runAllChecks } from './scanner.js';
 import { runAllChecks } from './scanner.js';
 import { generateReport } from './reporter.js';
 
@@ -46,6 +46,8 @@ authForm.addEventListener('submit', async (e) => {
     const accessKey = document.getElementById('accessKey').value.trim();
     const secretKey = document.getElementById('secretKey').value.trim();
     const region = document.getElementById('region').value;
+    const bucketListRaw = document.getElementById('bucketList').value;
+    const targetBuckets = bucketListRaw.split(',').map(s => s.trim()).filter(s => s.length > 0);
 
     // 1. Initialize AWS SDK
     if (initializeAWS(accessKey, secretKey, region)) {
@@ -55,8 +57,8 @@ authForm.addEventListener('submit', async (e) => {
         showScreen(scanningScreen);
         log("AWS Client initialized successfully.");
         
-        // 2. Start the scan process (For now, just testing connection)
-        await testConnection();
+        // 2. Start the scan process using the provided bucket list
+        await testConnection(targetBuckets);
     } else {
         alert("Failed to initialize AWS. Check console.");
     }
@@ -78,20 +80,15 @@ disconnectBtn.addEventListener('click', () => {
 });
 
 /**
- * Test Connection by listing buckets
+ * Test Connection by running scans on provided buckets
  */
-async function testConnection() {
-    scanStatusText.textContent = "Fetching S3 buckets...";
-    log("Calling s3:ListAllMyBuckets API...");
+async function testConnection(targetBuckets) {
     
     try {
-        const command = new ListBucketsCommand({});
-        const response = await s3Client.send(command);
+        const buckets = targetBuckets.map(name => ({ Name: name }));
+        log(`Success! Queued ${buckets.length} buckets.`);
         
-        const buckets = response.Buckets || [];
-        log(`Success! Found ${buckets.length} buckets.`);
-        
-        scanStatusText.textContent = `Found ${buckets.length} buckets. Starting security checks...`;
+        scanStatusText.textContent = `Queued ${buckets.length} buckets. Starting security checks...`;
         
         // Loop through each bucket and run the checks
         for (let i = 0; i < buckets.length; i++) {

@@ -1,5 +1,5 @@
 // js/aws-config.js
-import { S3Client } from "https://cdn.jsdelivr.net/npm/@aws-sdk/client-s3/dist-es/index.js";
+import { S3Client } from "@aws-sdk/client-s3";
 
 // Global reference to the connected client
 export let s3Client = null;

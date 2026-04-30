@@ -1,0 +1,24 @@
+{
+  "name": "aws_s3_scanner",
+  "version": "1.0.0",
+  "description": "Here's the **complete project details** for building the S3 Bucket Audit Tool as a web app (HTML/CSS/JS):",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepesh2026/AWS_S3_scanner.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/deepesh2026/AWS_S3_scanner/issues"
+  },
+  "homepage": "https://github.com/deepesh2026/AWS_S3_scanner#readme",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1039.0"
+  }
+}

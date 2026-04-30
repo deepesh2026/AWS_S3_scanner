@@ -6,7 +6,7 @@ import {
     GetBucketLoggingCommand,
     GetBucketPolicyCommand,
     GetBucketLifecycleConfigurationCommand
-} from "https://cdn.jsdelivr.net/npm/@aws-sdk/client-s3/dist-es/index.js";
+} from "@aws-sdk/client-s3";
 import { s3Client } from './aws-config.js';
 
 /**
